@@ -6,7 +6,7 @@ module Logoot.Types
   ) where
 
 import Logoot.Types.Position (Position(Position)) as Exports
-import Logoot.Types.Identifier (IdentifierF(Identifier)) as Exports
+import Logoot.Types.Identifier (IdentifierF(IdentifierF)) as Exports
 import Logoot.Types.Position (Position(..))
 
 digit :: forall peerId clock. Position peerId clock -> Int
