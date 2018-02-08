@@ -6,7 +6,7 @@ import Control.Monad.Eff (Eff)
 import Control.Monad.Eff.Random (RANDOM, randomInt)
 import Control.Plus (empty)
 import Data.Array as A
-import Data.Container (class Container, take, cons, length)
+import Data.Container (class Container, take, snoc, length)
 import Data.Foldable as F
 import Data.Function (on)
 import Data.Int as Z
@@ -98,7 +98,7 @@ logootRand b p q n boundary s = effList
 
   -- TODO: We may be mixing up endianness here
   consId :: Position i c -> IdentifierF f i c -> IdentifierF f i c
-  consId p (IdentifierF xs) = IdentifierF (cons p xs)
+  consId p (IdentifierF xs) = IdentifierF (snoc xs p)
 
 metric :: forall f. F.Foldable f => Base -> f Int -> Number
 metric (Base b) ds = (tidy (F.length ds) <<< _.val <<< A.foldl f {ind: 0, val: 0.0}) ds where
