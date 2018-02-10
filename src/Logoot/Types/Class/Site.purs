@@ -1,5 +1,7 @@
 module Logoot.Types.Class.Site where
 
-class Site s i c | s -> i c where
-  siteId :: s -> i
-  siteClock :: s -> c
+import Prelude (class Monad)
+
+class Site s m i c | s -> m i c where
+  siteId :: Monad m => s -> m i
+  siteClock :: Monad m => s -> m c

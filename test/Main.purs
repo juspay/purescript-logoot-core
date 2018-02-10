@@ -1,30 +1,20 @@
 module Test.Main where
 
-import Prelude
+import Testlude
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Console (CONSOLE, error, log)
-import Data.Container (class Container)
-import Logoot.Id (Base(..), prefix, intervalLength)
-import Logoot.Types (IdentifierF(..), Position(..))
+import Data.Array as A
+import Control.Monad.Eff.Ref (Ref, newRef)
 
-main :: forall e. Eff (console :: CONSOLE | e) Unit
+main :: forall e. TestEff e Unit
 main = do
+  log "\nTesting prefixes\n"
   testPrefixes
+  log "\nTesting interval lengths\n"
   testIntervalLengths
+  log "\nTesting id creation\n"
+  testIdCreation
 
-p :: IdentifierF Array Int Int
-p = IdentifierF [Position 2 4 7, Position 59 9 5]
-q :: IdentifierF Array Int Int
-q = IdentifierF [Position 10 5 3, Position 20 3 6, Position 3 3 9]
-b :: Base
-b = Base 100
-pref :: forall f s c. Container f => Int -> IdentifierF f s c -> Number
-pref = prefix b
-length :: forall f s c. Container f => Int -> IdentifierF f s c -> IdentifierF f s c -> Int
-length = intervalLength b
-
-testPrefixes :: forall e. Eff (console :: CONSOLE | e) Unit
+testPrefixes :: forall e. TestEff e Unit
 testPrefixes = do
   log "Base: 100"
   log "prefix(p, 1) == 2"
@@ -40,18 +30,21 @@ testPrefixes = do
   log "prefix(q, 3) == 10.20.03"
   pref 3 q ==? 10.2003
 
-testIntervalLengths :: forall e. Eff (console :: CONSOLE | e) Unit
+testIntervalLengths :: forall e. TestEff e Unit
 testIntervalLengths = do
   log "intervalLength(p,q,1) == 7"
-  length 1 p q ==? 7
+  len 1 p q ==? 7
   log "intervalLength(p,q,2) == 760"
-  length 2 p q ==? 760
+  len 2 p q ==? 760
   log "intervalLength(p,q,3) == 76102"
-  length 3 p q ==? 76102
+  len 3 p q ==? 76102
 
-shouldEq :: forall a e. Show a => Eq a => a -> a -> Eff (console :: CONSOLE | e) Unit
-shouldEq a b
-  | a == b = log "Test passed"
-  | otherwise = error $ "Failed on " <> show a <> " /= " <> show b
-
-infix 4 shouldEq as ==?
+testIdCreation :: forall e. TestEff e Unit
+testIdCreation = un Test do
+  clock <- Test (newRef 0)
+  xs <- getArray clock
+  -- print (xs == A.sort xs)
+  print xs
+  where
+    getArray :: Ref Int -> Test e (Array TestId)
+    getArray clock = logootRand (Base 100) p q 6 (Boundary 10) (S {id: 0, clock})

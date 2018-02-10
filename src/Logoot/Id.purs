@@ -2,35 +2,36 @@ module Logoot.Id where
 
 import Prelude
 
-import Control.Monad.Eff (Eff)
-import Control.Monad.Eff.Random (RANDOM, randomInt)
 import Control.Plus (empty)
 import Data.Array as A
-import Data.Container (class Container, take, snoc, length)
+import Data.Container (class Container, take, snoc, length, cons)
 import Data.Foldable as F
 import Data.Function (on)
 import Data.Int as Z
-import Data.List as L
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.Ord (abs)
 import Data.String as S
 import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigitDefault, ithPeerId)
 import Logoot.Types.Class.Site (class Site, siteClock, siteId)
-import Logoot.Types.Class.Clock (class Clock, cpp)
 import Math (pow, round)
+-- import Debug.Trace (traceShowA)
 
 type IdGenerator m g f i s c
   = IdentifierF f i c -> IdentifierF f i c -> Int -> Boundary -> s -> m (g (IdentifierF f i c))
 
+class Monad m <= MonadLogoot m where
+  rand :: Int -> Int -> m Int
+
 -- NOTE: Assumes p < q, so make sure this has been sorted before calling
 logootRand
-  :: forall f e s i c
-  . Container f
-  => Site s i c
-  => Clock c
+  :: forall g f m s i c
+   . MonadLogoot m
+  => Container f
+  => Container g
+  => Site s m i c
   => Base
-  -> IdGenerator (Eff (random :: RANDOM | e)) L.List f i s c
+  -> IdGenerator m g f i s c
 logootRand b p q n boundary s = effList
   where
 
@@ -47,13 +48,14 @@ logootRand b p q n boundary s = effList
   r :: Number
   r = prefix b indint.index p
 
-  effList :: Eff (random :: RANDOM | e) (L.List (IdentifierF f i c))
-  effList = go 1 r L.Nil where
-    go :: Int -> Number -> L.List (IdentifierF f i c) -> Eff (random :: RANDOM | e) (L.List (IdentifierF f i c))
+  effList :: m (g (IdentifierF f i c))
+  effList = go 1 r empty where
+    go :: Int -> Number -> g (IdentifierF f i c) -> m (g (IdentifierF f i c))
     go j r' lst
       | j <= n = do
-        rand <- randomInt 1 (un Boundary boundary) -- NOTE: Unsure whether this should be an int or a number
-        go (j+1) (r' + Z.toNumber step) (L.Cons (constructId (r' + Z.toNumber rand) p q s) lst)
+        rando <- rand 1 (un Boundary boundary) -- TODO: Unsure whether this should be an int or a number
+        newId <- constructId (r' + Z.toNumber rando) p q s
+        go (j+1) (r' + Z.toNumber step) (cons newId lst)
       | otherwise = pure lst
 
   -- NOTES:
@@ -62,9 +64,9 @@ logootRand b p q n boundary s = effList
   -- Furthermore the lack of typing in the original paper means
   -- that some numbers are treated at different times as
   -- integers, real numbers, and arrays of integers.
-  constructId :: Number -> IdentifierF f i c -> IdentifierF f i c -> s -> IdentifierF f i c
+  constructId :: Number -> IdentifierF f i c -> IdentifierF f i c -> s -> m (IdentifierF f i c)
   constructId r' p' q' s' = go 0 (IdentifierF empty) where
-    go :: Int -> IdentifierF f i c -> IdentifierF f i c
+    go :: Int -> IdentifierF f i c -> m (IdentifierF f i c)
     go i idf
       | i <= getLength p' q' -- See note for getLength
       , Just d <- r `getIthDigit` i
@@ -77,13 +79,15 @@ logootRand b p q n boundary s = effList
       , Just c'' <- q `ithClock` i
       , d == ithDigitDefault q i = go (i+1) (consId (Position d s'' c'') idf)
       | i <= getLength p' q'
-      , s'' <- siteId s'
-      , Just d <- r `getIthDigit` i
-      , c'' <- siteClock s' = go (i+1) (consId (Position d s'' (cpp c'')) idf)
-      | otherwise = idf
+      , Just d <- r `getIthDigit` i = do
+        s'' <- siteId s'
+        c'' <- siteClock s'
+        go (i+1) (consId (Position d s'' c'') idf)
+      | otherwise = pure idf
 
   getIthDigit :: Number -> Int -> Maybe Int
-  getIthDigit n i = A.catMaybes (map (Z.fromString <<< S.singleton) (S.toCharArray $ show n)) A.!! i
+  getIthDigit n i =
+    A.catMaybes (map (Z.fromString <<< S.singleton) (S.toCharArray $ show n)) A.!! i
 
   -- NOTE: Instead of passing in only one argument r, as in the paper, we pass in
   -- both identifiers for the following reasons:
@@ -94,11 +98,18 @@ logootRand b p q n boundary s = effList
   -- the length of the smallest, plus one (to get a bit of information from the
   -- random component).
   getLength :: IdentifierF f i c -> IdentifierF f i c -> Int
-  getLength (IdentifierF xs) (IdentifierF ys) = min (length xs) (length ys)
+  getLength (IdentifierF xs) (IdentifierF ys) = min (length xs) (length ys) + 1
 
-  -- TODO: We may be mixing up endianness here
+  -- TODO: If we use `cons` instead of `snoc` we may be mixing up endianness
   consId :: Position i c -> IdentifierF f i c -> IdentifierF f i c
   consId p (IdentifierF xs) = IdentifierF (snoc xs p)
+
+-- type IdGenerator m g f i s c
+--   = IdentifierF f i c -> IdentifierF f i c -> Int -> Boundary -> s -> m (g (IdentifierF f i c))
+-- midpt :: forall m g f i s c. Monad m => Container g => Container f => Site s i c => Clock c => Base -> IdGenerator m g f
+-- midpt b p q n boundary site = mList where
+--   m
+--   ids = prefixAsArray b n p
 
 metric :: forall f. F.Foldable f => Base -> f Int -> Number
 metric (Base b) ds = (tidy (F.length ds) <<< _.val <<< A.foldl f {ind: 0, val: 0.0}) ds where
