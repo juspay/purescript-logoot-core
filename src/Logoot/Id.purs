@@ -2,16 +2,15 @@ module Logoot.Id where
 
 import Prelude
 
-import Control.Plus (empty)
+import Control.Plus (empty, (<|>))
 import Data.Array as A
-import Data.Container (class Container, take, snoc, length, cons)
+import Data.Container (class Container, cons, length, reverse, snoc, take, (!!))
 import Data.Foldable as F
 import Data.Function (on)
 import Data.Int as Z
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.Ord (abs)
-import Data.String as S
 import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigitDefault, ithPeerId)
 import Logoot.Types.Class.Site (class Site, siteClock, siteId)
 import Math (pow, round)
@@ -32,8 +31,7 @@ logootRand
   => Site s m i c
   => Base
   -> IdGenerator m g f i s c
-logootRand b p q n boundary s = effList
-  where
+logootRand b p q n boundary s = effList where
 
   indint :: {interval :: Int, index :: Int}
   indint = go {interval: 0, index: 0} where
@@ -43,20 +41,20 @@ logootRand b p q n boundary s = effList
       | otherwise = acc
 
   step :: Int
-  step = min (indint.interval / n) (un Boundary boundary) -- NOTE: Unsure whether this should be int or number
+  step = min (indint.interval / n) (un Boundary boundary)
 
-  r :: Number
-  r = prefix b indint.index p
+  r :: f Int
+  r = prefixAsContainer b indint.index p
 
   effList :: m (g (IdentifierF f i c))
   effList = go 1 r empty where
-    go :: Int -> Number -> g (IdentifierF f i c) -> m (g (IdentifierF f i c))
+    go :: Int -> f Int -> g (IdentifierF f i c) -> m (g (IdentifierF f i c))
     go j r' lst
       | j <= n = do
-        rando <- rand 1 (un Boundary boundary) -- TODO: Unsure whether this should be an int or a number
-        newId <- constructId (r' + Z.toNumber rando) p q s
-        go (j+1) (r' + Z.toNumber step) (cons newId lst)
-      | otherwise = pure lst
+        rando <- rand 1 (un Boundary boundary)
+        newId <- constructId (r' <|> pure rando) p q s
+        go (j+1) (increase r' step) (cons newId lst)
+      | otherwise = pure (reverse lst)
 
   -- NOTES:
   -- This differs from the implementation in the Logoot paper.
@@ -64,45 +62,39 @@ logootRand b p q n boundary s = effList
   -- Furthermore the lack of typing in the original paper means
   -- that some numbers are treated at different times as
   -- integers, real numbers, and arrays of integers.
-  constructId :: Number -> IdentifierF f i c -> IdentifierF f i c -> s -> m (IdentifierF f i c)
+  constructId :: f Int -> IdentifierF f i c -> IdentifierF f i c -> s -> m (IdentifierF f i c)
   constructId r' p' q' s' = go 0 (IdentifierF empty) where
     go :: Int -> IdentifierF f i c -> m (IdentifierF f i c)
     go i idf
-      | i <= getLength p' q' -- See note for getLength
-      , Just d <- r `getIthDigit` i
+      | i < length r' -- TODO: Check if this should be < or <=
+      , Just d <- r' !! i
       , Just s'' <- p `ithPeerId` i
       , Just c'' <- p `ithClock` i
       , d == ithDigitDefault p i = go (i+1) (consId (Position d s'' c'') idf)
-      | i <= getLength p' q'
-      , Just d <- r `getIthDigit` i
+      | i <= length r'
+      , Just d <- r' !! i
       , Just s'' <- q `ithPeerId` i
       , Just c'' <- q `ithClock` i
       , d == ithDigitDefault q i = go (i+1) (consId (Position d s'' c'') idf)
-      | i <= getLength p' q'
-      , Just d <- r `getIthDigit` i = do
+      | i <= length r'
+      , Just d <- r' !! i = do
         s'' <- siteId s'
         c'' <- siteClock s'
         go (i+1) (consId (Position d s'' c'') idf)
       | otherwise = pure idf
 
-  getIthDigit :: Number -> Int -> Maybe Int
-  getIthDigit n i =
-    A.catMaybes (map (Z.fromString <<< S.singleton) (S.toCharArray $ show n)) A.!! i
-
-  -- NOTE: Instead of passing in only one argument r, as in the paper, we pass in
-  -- both identifiers for the following reasons:
-  -- 1. r is defined to have a random component, and if this needs to be a number
-  -- instead of an integer, r could be "overspecified": It could have more significant
-  -- digits than are strictly necessary, which could slow down performance over time.
-  -- 2. Either p or q could have longer length than the other, but we only need
-  -- the length of the smallest, plus one (to get a bit of information from the
-  -- random component).
-  getLength :: IdentifierF f i c -> IdentifierF f i c -> Int
-  getLength (IdentifierF xs) (IdentifierF ys) = min (length xs) (length ys) + 1
-
-  -- TODO: If we use `cons` instead of `snoc` we may be mixing up endianness
+  -- NOTE: If we use `cons` instead of `snoc` we may be mixing up endianness
   consId :: Position i c -> IdentifierF f i c -> IdentifierF f i c
-  consId p (IdentifierF xs) = IdentifierF (snoc xs p)
+  consId pos (IdentifierF xs) = IdentifierF (snoc xs pos)
+
+  -- TODO: This can probably be optimized. As it's written now, it's treating a
+  -- value of type `f Int` as a number, and the idea is to "increase" the first
+  -- argument `xs` by the second argument `i`. Here, "increase" means a function
+  -- such that the resulting value `ys :: f Int` will have the property that
+  -- `metric b ys - metric b xs ≈ i`.` We do this by effectively performing
+  -- a binary search over the space of `f Int` to find such a value.
+  increase :: f Int -> Int -> f Int
+  increase xs i = xs
 
 -- type IdGenerator m g f i s c
 --   = IdentifierF f i c -> IdentifierF f i c -> Int -> Boundary -> s -> m (g (IdentifierF f i c))
@@ -111,6 +103,8 @@ logootRand b p q n boundary s = effList
 --   m
 --   ids = prefixAsArray b n p
 
+-- Treats a value `ds :: f Int` in base `b` as a "real number" where each int is
+-- a digit. This function returns the "magnitude" of `ds`, or the "distance" from 0.
 metric :: forall f. F.Foldable f => Base -> f Int -> Number
 metric (Base b) ds = (tidy (F.length ds) <<< _.val <<< A.foldl f {ind: 0, val: 0.0}) ds where
   f :: {ind :: Int, val :: Number} -> Int -> {ind :: Int, val :: Number}
@@ -118,15 +112,15 @@ metric (Base b) ds = (tidy (F.length ds) <<< _.val <<< A.foldl f {ind: 0, val: 0
   tidy :: Int -> Number -> Number -- gets rid of pesky floating point errors
   tidy l x = round (x*b^l) / b^l
 
-prefixAsArray
+prefixAsContainer
   :: forall f i c. Container f
   => Base -> Int -> IdentifierF f i c -> f Int
-prefixAsArray base n = map digit <<< take n <<< un IdentifierF
+prefixAsContainer base n = map digit <<< take n <<< un IdentifierF
 
 prefix
   :: forall f i c. Container f
   => Base -> Int -> IdentifierF f i c -> Number
-prefix base n = metric base <<< prefixAsArray base n
+prefix base n = metric base <<< prefixAsContainer base n
 
 intervalLength
   :: forall f i c. Container f

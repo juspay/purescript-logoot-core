@@ -44,7 +44,10 @@ testIdCreation = un Test do
   clock <- Test (newRef 0)
   xs <- getArray clock
   -- print (xs == A.sort xs)
-  print xs
+  print $ A.filter f <<< un IdentifierF <$> xs
   where
     getArray :: Ref Int -> Test e (Array TestId)
     getArray clock = logootRand (Base 100) p q 6 (Boundary 10) (S {id: 0, clock})
+    f :: Position Int Int -> Boolean
+    f (Position _ 0 _) = true
+    f _ = false
