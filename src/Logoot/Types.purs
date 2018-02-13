@@ -4,7 +4,6 @@ module Logoot.Types
   , peerId
   , clock
   , ithDigit
-  , ithDigitDefault
   , ithPeerId
   , ithClock
   ) where
@@ -12,7 +11,7 @@ module Logoot.Types
 import Prelude
 
 import Data.Container (class Container, (!!))
-import Data.Maybe (Maybe, fromMaybe)
+import Data.Maybe (Maybe)
 import Logoot.Types.Identifier (IdentifierF(..))
 import Logoot.Types.Identifier (IdentifierF(..)) as Exports
 import Logoot.Types.Position (Position(..))
@@ -32,9 +31,6 @@ ithElt f (IdentifierF xs) n = f <$> xs !! n
 
 ithDigit :: forall f peerId clock. Container f => IdentifierF f peerId clock -> Int -> Maybe Int
 ithDigit = ithElt digit
-
-ithDigitDefault :: forall f peerId clock. Container f => IdentifierF f peerId clock -> Int -> Int
-ithDigitDefault idf = fromMaybe 0 <<< ithDigit idf
 
 ithPeerId :: forall f peerId clock. Container f => IdentifierF f peerId clock -> Int -> Maybe peerId
 ithPeerId = ithElt peerId

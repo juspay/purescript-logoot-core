@@ -2,106 +2,132 @@ module Logoot.Id where
 
 import Prelude
 
-import Control.Plus (empty, (<|>))
+import Control.Plus (empty)
 import Data.Array as A
-import Data.Container (class Container, cons, length, reverse, snoc, take, (!!))
+import Data.Container (class Container, cons, dropWhile, findIndex, reverse, set, take, (!!))
 import Data.Foldable as F
 import Data.Function (on)
+import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int as Z
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype, un)
 import Data.Ord (abs)
-import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigitDefault, ithPeerId)
+import Data.TraversableWithIndex (traverseWithIndex)
+import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigit, ithPeerId)
 import Logoot.Types.Class.Site (class Site, siteClock, siteId)
 import Math (pow, round)
 -- import Debug.Trace (traceShowA)
 
 type IdGenerator m g f i s c
-  = IdentifierF f i c -> IdentifierF f i c -> Int -> Boundary -> s -> m (g (IdentifierF f i c))
+  = Base
+  -> IdentifierF f i c
+  -> IdentifierF f i c
+  -> Int
+  -> Boundary
+  -> s
+  -> m (g (IdentifierF f i c))
 
 class Monad m <= MonadLogoot m where
   rand :: Int -> Int -> m Int
 
 -- NOTE: Assumes p < q, so make sure this has been sorted before calling
+-- Given two identifiers p and q, a base b, integer n, boundary and site:
+-- First calculate the "depth" of the generated identifiers. This depends
+-- on how many we want. For example, if p = <2,4,7><59,9,5> and
+-- q = <10,5,3><20,3,6><3,3,9>, then:
+-- a) we can find 7 = 10 - 2 - 1 identifiers between p and q of length 1 (the
+-- ones in the set (2, 10) = [3, 9])
+-- b) we can find 760 = 1020 - 259 - 1 identifiers between p and q of length 2
+-- (the ones in the set (2.59, 10.20) = [2.60, 10.19]
+-- c) 76102 identifiers of length 3, etc.
+-- So, we need to find the length of the generated identifiers which depends on
+-- the value n.
+-- Once we do that, there are actually n intervals r_i between p and q where we can
+-- choose any identifier r_i^* ∈ r_i. We choose these at random (hence the name).
+-- These intervals will be the minimum of the given boundary argument, and the
+-- calculated interval length (that only depends on p, q and n).
+-- Having chosen n identifiers r_i^* from each interval r_i, 1 <= i <= n, we are
+-- done.
 logootRand
   :: forall g f m s i c
    . MonadLogoot m
   => Container f
   => Container g
   => Site s m i c
-  => Base
-  -> IdGenerator m g f i s c
+  => IdGenerator m g f i s c
 logootRand b p q n boundary s = effList where
 
-  indint :: {interval :: Int, index :: Int}
-  indint = go {interval: 0, index: 0} where
-    go :: {interval :: Int, index :: Int} -> {interval :: Int, index :: Int}
-    go acc
-      | acc.interval < n = go {index: acc.index + 1, interval: intervalLength b acc.index p q}
-      | otherwise = acc
-
-  step :: Int
-  step = min (indint.interval / n) (un Boundary boundary)
-
-  r :: f Int
-  r = prefixAsContainer b indint.index p
-
+  -- Constructs n identifiers between p and q
   effList :: m (g (IdentifierF f i c))
-  effList = go 1 r empty where
+  effList = go 0 (prefixAsContainer b intervalInfo.depth p) empty where
     go :: Int -> f Int -> g (IdentifierF f i c) -> m (g (IdentifierF f i c))
-    go j r' lst
-      | j <= n = do
-        rando <- rand 1 (un Boundary boundary)
-        newId <- constructId (r' <|> pure rando) p q s
-        go (j+1) (increase r' step) (cons newId lst)
-      | otherwise = pure (reverse lst)
+    go i rDigits acc
+      | i < n = do
+        leastSigFig <- rand 1 intervalInfo.dist
+        let r = digitallyAdd rDigits leastSigFig
+        gen'dId <- generateId (nubZeroes r)
+        go (i + 1) (digitallyAdd rDigits intervalInfo.dist) (cons gen'dId acc)
+      | otherwise = pure (reverse acc)
 
-  -- NOTES:
-  -- This differs from the implementation in the Logoot paper.
-  -- It seems as if the paper starts indexing at 1 instead of 0.
-  -- Furthermore the lack of typing in the original paper means
-  -- that some numbers are treated at different times as
-  -- integers, real numbers, and arrays of integers.
-  constructId :: f Int -> IdentifierF f i c -> IdentifierF f i c -> s -> m (IdentifierF f i c)
-  constructId r' p' q' s' = go 0 (IdentifierF empty) where
-    go :: Int -> IdentifierF f i c -> m (IdentifierF f i c)
-    go i idf
-      | i < length r' -- TODO: Check if this should be < or <=
-      , Just d <- r' !! i
-      , Just s'' <- p `ithPeerId` i
-      , Just c'' <- p `ithClock` i
-      , d == ithDigitDefault p i = go (i+1) (consId (Position d s'' c'') idf)
-      | i <= length r'
-      , Just d <- r' !! i
-      , Just s'' <- q `ithPeerId` i
-      , Just c'' <- q `ithClock` i
-      , d == ithDigitDefault q i = go (i+1) (consId (Position d s'' c'') idf)
-      | i <= length r'
-      , Just d <- r' !! i = do
-        s'' <- siteId s'
-        c'' <- siteClock s'
-        go (i+1) (consId (Position d s'' c'') idf)
-      | otherwise = pure idf
+  -- Adds a least significant digit to a list of digits, handling spillover etc
+  -- Assumes ds always has a length of intervalInfo.depth + 1
+  digitallyAdd :: f Int -> Int -> f Int
+  digitallyAdd ds lsd
+    | {depth} <- intervalInfo -- everything is peachy
+    , Just d <- ds !! depth
+    , d' <- d + lsd
+    , d' < un Base b = set ds depth d'
+    | {depth} <- intervalInfo -- shit, we need to increment a more significant digit
+    , Just d <- ds !! depth
+    , base <- un Base b
+    , ds' <- set ds depth (base - 1)
+    , d' <- (d + lsd) `mod` base = set (succ ds') depth d'
+    | otherwise = ds -- this should be impossible
+  
+  -- Assumes the argument has length intervalInfo.depth + 1
+  -- Finds the significance (index) of the digit that must be incremented, increments
+  -- it and sets all digits of lower significance to 0
+  succ :: f Int -> f Int
+  succ ds
+    | ds' <- reverse ds
+    , Base base <- b
+    , Just i <- findIndex (\ x -> x + 1 < base) ds =
+      flip mapWithIndex ds' \ idx -> case compare idx i of
+        LT -> const 0
+        EQ -> (_ + 1)
+        GT -> id
+    | otherwise = ds -- this should be impossible
+  
+  nubZeroes :: f Int -> f Int
+  nubZeroes = reverse <<< dropWhile (_ == 0) <<< reverse
 
-  -- NOTE: If we use `cons` instead of `snoc` we may be mixing up endianness
-  consId :: Position i c -> IdentifierF f i c -> IdentifierF f i c
-  consId pos (IdentifierF xs) = IdentifierF (snoc xs pos)
-
-  -- TODO: This can probably be optimized. As it's written now, it's treating a
-  -- value of type `f Int` as a number, and the idea is to "increase" the first
-  -- argument `xs` by the second argument `i`. Here, "increase" means a function
-  -- such that the resulting value `ys :: f Int` will have the property that
-  -- `metric b ys - metric b xs ≈ i`.` We do this by effectively performing
-  -- a binary search over the space of `f Int` to find such a value.
-  increase :: f Int -> Int -> f Int
-  increase xs i = xs
-
--- type IdGenerator m g f i s c
---   = IdentifierF f i c -> IdentifierF f i c -> Int -> Boundary -> s -> m (g (IdentifierF f i c))
--- midpt :: forall m g f i s c. Monad m => Container g => Container f => Site s i c => Clock c => Base -> IdGenerator m g f
--- midpt b p q n boundary site = mList where
---   m
---   ids = prefixAsArray b n p
+  -- Figures out how many significant digits the generated identifiers need
+  -- (depth), and how far apart the identifers are wrt their least significant digit
+  -- (dist)
+  intervalInfo :: {depth :: Int, dist :: Int}
+  intervalInfo = go 1 where
+    go :: Int -> {depth :: Int, dist :: Int}
+    go i
+      | intervalLength b i p q < n = -- not enough available ids
+        go (i + 1) -- so we need more sigfigs
+      | otherwise = -- available ids are >= # requested ids
+        { depth: i - 1 -- since we're 0-indexed
+        , dist: min (intervalLength b i p q / n) (min (un Boundary boundary) 1)
+        }
+  
+  generateId :: f Int -> m (IdentifierF f i c)
+  generateId r = IdentifierF <$> traverseWithIndex f r where
+    f :: Int -> Int -> m (Position i c)
+    f i d
+      | Just d' <- p `ithDigit` i
+      , Just pid <- p `ithPeerId` i
+      , Just clock <- p `ithClock` i
+      , d' == d = pure (Position d pid clock)
+      | Just d' <- q `ithDigit` i
+      , Just pid <- q `ithPeerId` i
+      , Just clock <- q `ithClock` i
+      , d' == d = pure (Position d pid clock)
+      | otherwise = Position d <$> siteId s <*> siteClock s
 
 -- Treats a value `ds :: f Int` in base `b` as a "real number" where each int is
 -- a digit. This function returns the "magnitude" of `ds`, or the "distance" from 0.
@@ -125,12 +151,12 @@ prefix base n = metric base <<< prefixAsContainer base n
 intervalLength
   :: forall f i c. Container f
   => Base -> Int -> IdentifierF f i c -> IdentifierF f i c -> Int
-intervalLength b@(Base b') n p q =
+intervalLength b@(Base b') i p q =
   let
-    p' = prefix b n p
-    q' = prefix b n q
+    p' = prefix b i p
+    q' = prefix b i q
   in
-    Z.round (abs (p'*b'^(n-1) - q'*b'^(n-1)) - 1.0)
+    Z.round (abs (p'*b'^(i-1) - q'*b'^(i-1)) - 1.0)
 
 -- Utilities
 
