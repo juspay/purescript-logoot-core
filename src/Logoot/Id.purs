@@ -9,14 +9,14 @@ import Data.Foldable as F
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int as Z
-import Data.Maybe (Maybe(..))
+import Data.Maybe (Maybe(Just))
 import Data.Newtype (class Newtype, un)
 import Data.Ord (abs)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigit, ithPeerId)
 import Logoot.Types.Class.Site (class Site, siteClock, siteId)
 import Math (pow, round)
--- import Debug.Trace (traceShowA)
+import Partial.Unsafe (unsafeCrashWith)
 
 type IdGenerator m g f i s c
   = Base
@@ -50,7 +50,7 @@ class Monad m <= MonadLogoot m where
 -- done.
 logootRand
   :: forall g f m s i c
-   . MonadLogoot m
+   . MonadLogoot m => Show (f Int)
   => Container f
   => Container g
   => Site s m i c
@@ -59,45 +59,18 @@ logootRand b p q n boundary s = effList where
 
   -- Constructs n identifiers between p and q
   effList :: m (g (IdentifierF f i c))
-  effList = go 0 (prefixAsContainer b intervalInfo.depth p) empty where
+  effList = go 0 (prefixAsContainer b (intervalInfo.depth + 1) p) empty where
     go :: Int -> f Int -> g (IdentifierF f i c) -> m (g (IdentifierF f i c))
     go i rDigits acc
       | i < n = do
         leastSigFig <- rand 1 intervalInfo.dist
-        let r = digitallyAdd rDigits leastSigFig
+        let
+          r = digitallyAdd rDigits leastSigFig
+          rDigits' = digitallyAdd rDigits intervalInfo.dist
         gen'dId <- generateId (nubZeroes r)
-        go (i + 1) (digitallyAdd rDigits intervalInfo.dist) (cons gen'dId acc)
+        go (i + 1) rDigits' (cons gen'dId acc)
       | otherwise = pure (reverse acc)
 
-  -- Adds a least significant digit to a list of digits, handling spillover etc
-  -- Assumes ds always has a length of intervalInfo.depth + 1
-  digitallyAdd :: f Int -> Int -> f Int
-  digitallyAdd ds lsd
-    | {depth} <- intervalInfo -- everything is peachy
-    , Just d <- ds !! depth
-    , d' <- d + lsd
-    , d' < un Base b = set ds depth d'
-    | {depth} <- intervalInfo -- shit, we need to increment a more significant digit
-    , Just d <- ds !! depth
-    , base <- un Base b
-    , ds' <- set ds depth (base - 1)
-    , d' <- (d + lsd) `mod` base = set (succ ds') depth d'
-    | otherwise = ds -- this should be impossible
-  
-  -- Assumes the argument has length intervalInfo.depth + 1
-  -- Finds the significance (index) of the digit that must be incremented, increments
-  -- it and sets all digits of lower significance to 0
-  succ :: f Int -> f Int
-  succ ds
-    | ds' <- reverse ds
-    , Base base <- b
-    , Just i <- findIndex (\ x -> x + 1 < base) ds =
-      flip mapWithIndex ds' \ idx -> case compare idx i of
-        LT -> const 0
-        EQ -> (_ + 1)
-        GT -> id
-    | otherwise = ds -- this should be impossible
-  
   nubZeroes :: f Int -> f Int
   nubZeroes = reverse <<< dropWhile (_ == 0) <<< reverse
 
@@ -112,7 +85,7 @@ logootRand b p q n boundary s = effList where
         go (i + 1) -- so we need more sigfigs
       | otherwise = -- available ids are >= # requested ids
         { depth: i - 1 -- since we're 0-indexed
-        , dist: min (intervalLength b i p q / n) (min (un Boundary boundary) 1)
+        , dist: max 1 (min (intervalLength b i p q / n) (un Boundary boundary))
         }
   
   generateId :: f Int -> m (IdentifierF f i c)
@@ -128,6 +101,37 @@ logootRand b p q n boundary s = effList where
       , Just clock <- q `ithClock` i
       , d' == d = pure (Position d pid clock)
       | otherwise = Position d <$> siteId s <*> siteClock s
+
+  -- Adds a least significant digit to a list of digits, handling spillover etc
+  -- Assumes ds always has a length of intervalInfo.depth + 1
+  digitallyAdd :: f Int -> Int -> f Int
+  digitallyAdd ds lsd
+    | {depth} <- intervalInfo -- everything is peachy
+    , Just d <- ds !! depth
+    , base <- un Base b
+    , d' <- d + lsd
+    , d' < base = set ds depth d'
+    | {depth} <- intervalInfo -- shit, we need to increment a more significant digit
+    , Just d <- ds !! depth
+    , base <- un Base b
+    , ds' <- set ds depth (base - 1)
+    , d' <- (d + lsd) `mod` base = set (succ ds') depth d'
+    | otherwise = unsafeCrashWith "The impossible happened!"
+    -- Getting the wrong sigdig, and incorrectly setting it to the base for some reason
+
+  -- Assumes the argument has length intervalInfo.depth + 1
+  -- Finds the significance (index) of the digit that must be incremented, increments
+  -- it and sets all digits of lower significance to 0
+  succ :: f Int -> f Int
+  succ ds
+    | ds' <- reverse ds
+    , Base base <- b
+    , Just i <- findIndex (\ x -> x + 1 < base) ds' =
+      reverse $ flip mapWithIndex ds' \ idx -> case compare idx i of
+        LT -> const 0
+        EQ -> (_ + 1)
+        GT -> id
+    | otherwise = unsafeCrashWith "The impossible happened!" -- this should be impossible
 
 -- Treats a value `ds :: f Int` in base `b` as a "real number" where each int is
 -- a digit. This function returns the "magnitude" of `ds`, or the "distance" from 0.

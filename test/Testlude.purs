@@ -5,7 +5,8 @@ module Testlude
   -- utilities
   , pref, len
   , shouldEq, (==?)
-  , print
+  , print, printStr
+  , shouldEqTest, (?==)
   -- data types
   , S(..)
   , Test(..)
@@ -22,7 +23,7 @@ import Control.Monad.Eff.Console (error, log) as Exports
 import Control.Monad.Eff.Random (RANDOM, randomInt)
 import Control.Monad.Eff.Ref (REF, Ref, modifyRef')
 import Data.Container (class Container)
-import Data.Container (class Container, take, drop, cons, snoc, index, length) as Exports
+import Data.Container (class Container, take, drop, cons, index) as Exports
 import Data.Newtype (class Newtype)
 import Data.Newtype (un) as Exports
 import Logoot.Id (Base(..), Boundary(..), intervalLength, logootRand, prefix) as Exports
@@ -79,4 +80,12 @@ instance monadLogootTest :: MonadLogoot (Test e) where
   rand beg end = Test (randomInt beg end)
 
 print :: forall a e. Show a => a -> Test e Unit
-print = Test <<< log <<< show
+print = printStr <<< show
+
+printStr :: forall e. String -> Test e Unit
+printStr = Test <<< log
+
+shouldEqTest :: forall a e. Show a => Eq a => a -> a -> Test e Unit
+shouldEqTest x y = Test (shouldEq x y)
+
+infix 4 shouldEqTest as ?==
