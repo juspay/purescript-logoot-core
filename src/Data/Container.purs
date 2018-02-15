@@ -26,6 +26,8 @@ class
   dropWhile :: forall a. (a -> Boolean) -> f a -> f a
   findIndex :: forall a. (a -> Boolean) -> f a -> Maybe Int
   replicate :: forall a. Int -> a -> f a
+  insert :: forall a. Ord a => a -> f a -> f a
+  slice :: Int -> Int -> f ~> f
   -- snoc :: forall a. f a -> a -> f a
   -- length :: forall a. f a -> Int
 
@@ -39,6 +41,8 @@ instance containerArray :: Container Array where
   dropWhile = A.dropWhile
   findIndex = A.findIndex
   replicate = A.replicate
+  insert = A.insert
+  slice = A.slice
   -- snoc = A.snoc
   -- length = A.length
 
@@ -52,6 +56,8 @@ instance containerList :: Container L.List where
   dropWhile = L.dropWhile
   findIndex = L.findIndex
   replicate = L'.replicate
+  insert = L.insert
+  slice = L.slice
   -- snoc = L.snoc
   -- length = L.length
 

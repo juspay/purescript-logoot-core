@@ -50,7 +50,7 @@ class Monad m <= MonadLogoot m where
 -- done.
 logootRand
   :: forall g f m s i c
-   . MonadLogoot m => Show (f Int)
+   . MonadLogoot m
   => Container f
   => Container g
   => Site s m i c
@@ -93,13 +93,9 @@ logootRand b p q n boundary s = effList where
     f :: Int -> Int -> m (Position i c)
     f i d
       | Just d' <- p `ithDigit` i
-      , Just pid <- p `ithPeerId` i
-      , Just clock <- p `ithClock` i
-      , d' == d = pure (Position d pid clock)
+      , d' == d = pure (Position d (p `ithPeerId` i) (p `ithClock` i))
       | Just d' <- q `ithDigit` i
-      , Just pid <- q `ithPeerId` i
-      , Just clock <- q `ithClock` i
-      , d' == d = pure (Position d pid clock)
+      , d' == d = pure (Position d (q `ithPeerId` i) (q `ithClock` i))
       | otherwise = Position d <$> siteId s <*> siteClock s
 
   -- Adds a least significant digit to a list of digits, handling spillover etc
@@ -131,7 +127,7 @@ logootRand b p q n boundary s = effList where
         LT -> const 0
         EQ -> (_ + 1)
         GT -> id
-    | otherwise = unsafeCrashWith "The impossible happened!" -- this should be impossible
+    | otherwise = unsafeCrashWith "The impossible happened! findIndex pattern matching failed in succ" -- this should be impossible
 
 -- Treats a value `ds :: f Int` in base `b` as a "real number" where each int is
 -- a digit. This function returns the "magnitude" of `ds`, or the "distance" from 0.

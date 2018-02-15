@@ -24,6 +24,7 @@ import Control.Monad.Eff.Random (RANDOM, randomInt)
 import Control.Monad.Eff.Ref (REF, Ref, modifyRef')
 import Data.Container (class Container)
 import Data.Container (class Container, take, drop, cons, index) as Exports
+import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Newtype (un) as Exports
 import Logoot.Id (Base(..), Boundary(..), intervalLength, logootRand, prefix) as Exports
@@ -42,10 +43,10 @@ shouldEq x y
 infix 4 shouldEq as ==?
 
 p :: IdentifierF Array Int Int
-p = IdentifierF [Position 2 4 7, Position 59 9 5]
+p = IdentifierF [Position 2 (Just 4) (Just 7), Position 59 (Just 9) (Just 5)]
 
 q :: IdentifierF Array Int Int
-q = IdentifierF [Position 10 5 3, Position 20 3 6, Position 3 3 9]
+q = IdentifierF [Position 10 (Just 5) (Just 3), Position 20 (Just 3) (Just 6), Position 3 (Just 3) (Just 9)]
 
 b :: Base
 b = Base 100
@@ -59,9 +60,9 @@ len = intervalLength b
 newtype S = S {id :: Int, clock :: Ref Int}
 
 instance siteS :: Site S (Test e) Int Int where
-  siteId (S {id}) = pure id
+  siteId (S {id}) = pure (Just id)
   siteClock (S {clock}) =
-    Test $ modifyRef' clock \ s -> {state: s+1, value: s+1}
+    Test $ modifyRef' clock \ s -> {state: s+1, value: Just (s+1)}
 
 type TestId = IdentifierF Array Int Int
 

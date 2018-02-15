@@ -44,10 +44,12 @@ testIdCreation :: forall e. TestEff e Unit
 testIdCreation = un Test do
   clock <- Test (newRef 0)
   computedArrayOfLength7 <- getArray 7 clock
+  computedArrayOfLength70 <- getArray 70 clock
+
   printStr "Computed identifier is what we expect:"
   computedArrayOfLength7 ?== artisanallyHandcraftedArrayOfLength7
+
   printStr "Identifier with 70 elements has expected properties:"
-  computedArrayOfLength70 <- getArray 70 clock
   A.length computedArrayOfLength70 ?== 70
   A.sort computedArrayOfLength70 ?== computedArrayOfLength70
   compare (Just p) (A.head computedArrayOfLength70) ?== LT
@@ -56,12 +58,6 @@ testIdCreation = un Test do
     getArray :: Int -> Ref Int -> Test e (Array TestId)
     getArray i clock = logootRand b p q i (Boundary 10) (S {id: 0, clock})
     artisanallyHandcraftedArrayOfLength7 :: Array (IdentifierF Array Int Int)
-    artisanallyHandcraftedArrayOfLength7 = map (IdentifierF <<< pure)
-      [ Position 3 0 1
-      , Position 4 0 2
-      , Position 5 0 3
-      , Position 6 0 4
-      , Position 7 0 5
-      , Position 8 0 6
-      , Position 9 0 7
-      ]
+    artisanallyHandcraftedArrayOfLength7 = createIdentifier <$> A.range 1 7
+    createIdentifier :: Int -> IdentifierF Array Int Int
+    createIdentifier n = IdentifierF [Position (n + 2) (Just 0) (Just n)]

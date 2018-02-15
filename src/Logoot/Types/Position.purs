@@ -1,8 +1,9 @@
 module Logoot.Types.Position where
 
 import Prelude
+import Data.Maybe (Maybe)
 
-data Position peerId clock = Position Int peerId clock
+data Position peerId clock = Position Int (Maybe peerId) (Maybe clock)
 
 derive instance eqPosition :: (Eq peerId, Eq clock) => Eq (Position peerId clock)
 
