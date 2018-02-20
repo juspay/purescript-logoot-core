@@ -3,6 +3,7 @@ module Data.Container where
 import Prelude
 
 import Control.Plus (class Plus)
+import Data.Tuple (Tuple)
 import Data.Array as A
 import Data.Foldable (class Foldable)
 import Data.FunctorWithIndex (mapWithIndex)
@@ -28,7 +29,10 @@ class
   replicate :: forall a. Int -> a -> f a
   insert :: forall a. Ord a => a -> f a -> f a
   slice :: Int -> Int -> f ~> f
-  -- snoc :: forall a. f a -> a -> f a
+  zip :: forall a b. f a -> f b -> f (Tuple a b)
+  zipWith :: forall a b c. (a -> b -> c) -> f a -> f b -> f c
+  snoc :: forall a. f a -> a -> f a
+  fromFoldable :: forall g. Foldable g => g ~> f
   -- length :: forall a. f a -> Int
 
 instance containerArray :: Container Array where
@@ -43,7 +47,10 @@ instance containerArray :: Container Array where
   replicate = A.replicate
   insert = A.insert
   slice = A.slice
-  -- snoc = A.snoc
+  zip = A.zip
+  zipWith = A.zipWith
+  snoc = A.snoc
+  fromFoldable = A.fromFoldable
   -- length = A.length
 
 instance containerList :: Container L.List where
@@ -58,7 +65,10 @@ instance containerList :: Container L.List where
   replicate = L'.replicate
   insert = L.insert
   slice = L.slice
-  -- snoc = L.snoc
+  zip = L.zip
+  zipWith = L.zipWith
+  snoc = L.snoc
+  fromFoldable = L.fromFoldable
   -- length = L.length
 
 infixl 8 index as !!

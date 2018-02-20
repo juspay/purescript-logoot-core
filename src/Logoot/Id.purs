@@ -4,12 +4,12 @@ import Prelude
 
 import Control.Plus (empty)
 import Data.Array as A
-import Data.Container (class Container, cons, dropWhile, findIndex, reverse, set, take, (!!))
+import Data.Container (class Container, cons, dropWhile, findIndex, reverse, set, snoc, take, (!!))
 import Data.Foldable as F
 import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int as Z
-import Data.Maybe (Maybe(Just))
+import Data.Maybe (Maybe(..), maybe)
 import Data.Newtype (class Newtype, un)
 import Data.Ord (abs)
 import Data.TraversableWithIndex (traverseWithIndex)
@@ -96,24 +96,29 @@ logootRand b p q n boundary s = effList where
       , d' == d = pure (Position d (p `ithPeerId` i) (p `ithClock` i))
       | Just d' <- q `ithDigit` i
       , d' == d = pure (Position d (q `ithPeerId` i) (q `ithClock` i))
-      | otherwise = Position d <$> siteId s <*> siteClock s
+      | otherwise = do
+        sid <- siteId s
+        sclock <- siteClock s
+        pure (Position d (Just sid) (Just sclock))
 
   -- Adds a least significant digit to a list of digits, handling spillover etc
-  -- Assumes ds always has a length of intervalInfo.depth + 1
   digitallyAdd :: f Int -> Int -> f Int
   digitallyAdd ds lsd
     | {depth} <- intervalInfo -- everything is peachy
-    , Just d <- ds !! depth
+    , ds' <- maybe (snoc ds 0) (\_ -> ds) (ds !! depth)
+    , Just d <- ds' !! depth
     , base <- un Base b
     , d' <- d + lsd
-    , d' < base = set ds depth d'
+    , d' < base = set ds' depth d'
     | {depth} <- intervalInfo -- shit, we need to increment a more significant digit
-    , Just d <- ds !! depth
+    , ds' <- maybe (snoc ds 0) (\_ -> ds) (ds !! depth)
+    , Just d <- ds' !! depth
     , base <- un Base b
-    , ds' <- set ds depth (base - 1)
-    , d' <- (d + lsd) `mod` base = set (succ ds') depth d'
+    , ds'' <- set ds' depth (base - 1)
+    , d' <- (d + lsd) `mod` base = set (succ ds'') depth d'
     | otherwise = unsafeCrashWith "The impossible happened!"
-    -- Getting the wrong sigdig, and incorrectly setting it to the base for some reason
+    -- TODO: optimize # of sigfigs required, seems to sometimes use more than it needs
+    -- maybe it uses the # of sigfigs of the lower-bounding position?
 
   -- Assumes the argument has length intervalInfo.depth + 1
   -- Finds the significance (index) of the digit that must be incremented, increments
