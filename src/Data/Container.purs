@@ -33,7 +33,10 @@ class
   zipWith :: forall a b c. (a -> b -> c) -> f a -> f b -> f c
   snoc :: forall a. f a -> a -> f a
   fromFoldable :: forall g. Foldable g => g ~> f
-  -- length :: forall a. f a -> Int
+  insertBy :: forall a. (a -> a -> Ordering) -> a -> f a -> f a
+  insertAt :: forall a. Int -> a -> f a -> Maybe (f a)
+  deleteAt :: forall a. Int -> f a -> Maybe (f a)
+  length :: forall a. f a -> Int
 
 instance containerArray :: Container Array where
   take = A.take
@@ -51,7 +54,10 @@ instance containerArray :: Container Array where
   zipWith = A.zipWith
   snoc = A.snoc
   fromFoldable = A.fromFoldable
-  -- length = A.length
+  insertBy = A.insertBy
+  insertAt = A.insertAt
+  deleteAt = A.deleteAt
+  length = A.length
 
 instance containerList :: Container L.List where
   take = L.take
@@ -69,7 +75,10 @@ instance containerList :: Container L.List where
   zipWith = L.zipWith
   snoc = L.snoc
   fromFoldable = L.fromFoldable
-  -- length = L.length
+  insertBy = L.insertBy
+  insertAt = L.insertAt
+  deleteAt = L.deleteAt
+  length = L.length
 
 infixl 8 index as !!
 
