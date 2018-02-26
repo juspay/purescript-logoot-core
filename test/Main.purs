@@ -3,7 +3,10 @@ module Test.Main where
 import Testlude
 
 import Control.Monad.Eff.Ref (Ref, newRef)
+import Control.Monad.Except (runExcept)
 import Data.Array as A
+import Data.Either (Either(..))
+import Data.Foreign.Generic (decodeJSON, encodeJSON)
 import Data.Maybe (Maybe(..))
 
 main :: forall e. TestEff e Unit
@@ -14,6 +17,8 @@ main = do
   testIntervalLengths
   log "\nTesting id creation\n"
   testIdCreation
+  log "\nTesting json"
+  testJson
 
 testPrefixes :: forall e. TestEff e Unit
 testPrefixes = do
@@ -61,3 +66,15 @@ testIdCreation = un Test do
     artisanallyHandcraftedArrayOfLength7 = createIdentifier <$> A.range 1 7
     createIdentifier :: Int -> IdentifierF Array Int Int
     createIdentifier n = IdentifierF [Position (n + 2) (Just 0) (Just n)]
+
+testJson :: forall e. TestEff e Unit
+testJson = un Test do
+  runExcept (decodeJSON (encodeJSON p)) ?== Right p
+  runExcept (decodeJSON (encodeJSON q)) ?== Right q
+  runExcept (decodeJSON (encodeJSON p0)) ?== Right p0
+  runExcept (decodeJSON (encodeJSON q0)) ?== Right q0
+  where
+    p0 :: Position Int Int
+    p0 = Position 0 Nothing Nothing
+    q0 :: Position Int Int
+    q0 = Position 100 Nothing Nothing

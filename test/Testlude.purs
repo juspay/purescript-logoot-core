@@ -27,8 +27,10 @@ import Data.Container (class Container, take, drop, cons, index) as Exports
 import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Newtype (un) as Exports
-import Logoot.Id (Base(..), Boundary(..), intervalLength, logootRand, prefix) as Exports
-import Logoot.Id (class MonadLogoot, Base(..), intervalLength, prefix)
+import Logoot.Id (intervalLength, logootRand, prefix) as Exports
+import Logoot.Id (class MonadLogoot, intervalLength, prefix)
+import Logoot.Types.Util (Base(..))
+import Logoot.Types.Util (Base(..), Boundary(..)) as Exports
 import Logoot.Types (IdentifierF(..), Position(..))
 import Logoot.Types (IdentifierF(..), Position(..)) as Exports
 import Logoot.Types.Class.Site (class Site)

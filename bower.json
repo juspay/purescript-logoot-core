@@ -12,7 +12,8 @@
     "purescript-lists": "^4.12.0",
     "purescript-random": "^3.0.0",
     "purescript-free": "^4.2.0",
-    "purescript-strings": "^3.4.0"
+    "purescript-strings": "^3.4.0",
+    "purescript-foreign-generic": "^5.0.1"
   },
   "devDependencies": {
     "purescript-psci-support": "^3.0.0",

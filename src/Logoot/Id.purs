@@ -6,16 +6,16 @@ import Control.Plus (empty)
 import Data.Array as A
 import Data.Container (class Container, cons, dropWhile, findIndex, reverse, set, snoc, take, (!!))
 import Data.Foldable as F
-import Data.Function (on)
 import Data.FunctorWithIndex (mapWithIndex)
 import Data.Int as Z
 import Data.Maybe (Maybe(..), maybe)
-import Data.Newtype (class Newtype, un)
+import Data.Newtype (un)
 import Data.Ord (abs)
 import Data.TraversableWithIndex (traverseWithIndex)
 import Logoot.Types (IdentifierF(IdentifierF), Position(Position), digit, ithClock, ithDigit, ithPeerId)
 import Logoot.Types.Class.Site (class Site, siteClock, siteId)
-import Math (pow, round)
+import Logoot.Types.Util (Base(..), Boundary(..), (^))
+import Math (round)
 import Partial.Unsafe (unsafeCrashWith)
 
 type IdGenerator m g f i s c
@@ -117,8 +117,6 @@ logootRand b p q n boundary s = effList where
     , ds'' <- set ds' depth (base - 1)
     , d' <- (d + lsd) `mod` base = set (succ ds'') depth d'
     | otherwise = unsafeCrashWith "The impossible happened!"
-    -- TODO: optimize # of sigfigs required, seems to sometimes use more than it needs
-    -- maybe it uses the # of sigfigs of the lower-bounding position?
 
   -- Assumes the argument has length intervalInfo.depth + 1
   -- Finds the significance (index) of the digit that must be incremented, increments
@@ -162,18 +160,3 @@ intervalLength b@(Base b') i p q =
     q' = prefix b i q
   in
     Z.round (abs (p'*b'^(i-1) - q'*b'^(i-1)) - 1.0)
-
--- Utilities
-
-raise :: Int -> Int -> Number
-raise = pow `on` Z.toNumber
-
-infixr 8 raise as ^
-
-newtype Base = Base Int
-
-derive instance newtypeBase :: Newtype Base _
-
-newtype Boundary = Boundary Int
-
-derive instance newtypeBoundary :: Newtype Boundary _
