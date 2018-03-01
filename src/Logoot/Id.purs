@@ -19,16 +19,14 @@ import Math (round)
 import Partial.Unsafe (unsafeCrashWith)
 
 type IdGenerator m g f i s c
-  = Base
+  = { rand :: Int -> Int -> m Int }
+  -> Base
   -> IdentifierF f i c
   -> IdentifierF f i c
   -> Int
   -> Boundary
   -> s
   -> m (g (IdentifierF f i c))
-
-class Monad m <= MonadLogoot m where
-  rand :: Int -> Int -> m Int
 
 -- NOTE: Assumes p < q, so make sure this has been sorted before calling
 -- Given two identifiers p and q, a base b, integer n, boundary and site:
@@ -50,12 +48,11 @@ class Monad m <= MonadLogoot m where
 -- done.
 logootRand
   :: forall g f m s i c
-   . MonadLogoot m
-  => Container f
+   . Container f
   => Container g
   => Site s m i c
   => IdGenerator m g f i s c
-logootRand b p q n boundary s = effList where
+logootRand {rand} b p q n boundary s = effList where
 
   -- Constructs n identifiers between p and q
   effList :: m (g (IdentifierF f i c))

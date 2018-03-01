@@ -7,6 +7,7 @@ module Testlude
   , shouldEq, (==?)
   , print, printStr
   , shouldEqTest, (?==)
+  , rand
   -- data types
   , S(..)
   , Test(..)
@@ -28,7 +29,7 @@ import Data.Maybe (Maybe(..))
 import Data.Newtype (class Newtype)
 import Data.Newtype (un) as Exports
 import Logoot.Id (intervalLength, logootRand, prefix) as Exports
-import Logoot.Id (class MonadLogoot, intervalLength, prefix)
+import Logoot.Id (intervalLength, prefix)
 import Logoot.Types.Util (Base(..))
 import Logoot.Types.Util (Base(..), Boundary(..)) as Exports
 import Logoot.Types (IdentifierF(..), Position(..))
@@ -79,8 +80,8 @@ derive newtype instance applicativeTest :: Applicative (Test e)
 derive newtype instance bindTest :: Bind (Test e)
 derive newtype instance monadTest :: Monad (Test e)
 
-instance monadLogootTest :: MonadLogoot (Test e) where
-  rand beg end = Test (randomInt beg end)
+rand :: forall e. Int -> Int -> Test e Int
+rand beg end = Test (randomInt beg end)
 
 print :: forall a e. Show a => a -> Test e Unit
 print = printStr <<< show

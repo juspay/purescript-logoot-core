@@ -61,7 +61,7 @@ testIdCreation = un Test do
   compare (Just q) (A.last computedArrayOfLength70) ?== GT
   where
     getArray :: Int -> Ref Int -> Test e (Array TestId)
-    getArray i clock = logootRand b p q i (Boundary 10) (S {id: 0, clock})
+    getArray i clock = logootRand {rand} b p q i (Boundary 10) (S {id: 0, clock})
     artisanallyHandcraftedArrayOfLength7 :: Array (IdentifierF Array Int Int)
     artisanallyHandcraftedArrayOfLength7 = createIdentifier <$> A.range 1 7
     createIdentifier :: Int -> IdentifierF Array Int Int
