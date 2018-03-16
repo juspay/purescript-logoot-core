@@ -26,3 +26,5 @@ it makes sense to use a fast (i.e. O(log n)) search algorithm, like
 a simple binary search, to retrieve identifiers.
 
 Also, if server CPU cyles are not an issue, it may be worthwhile to keep a "current document state" that holds a list of active identifiers and document elements, then broadcast that to a new user upon connecting. The alternative is to transmit the whole document history and let the user recompute the latest document state.
+
+For convenience you can use the `Logoot.Types.History` module for encoding and decoding history.
