@@ -1,5 +1,5 @@
 {
-  "name": "logoot-core",
+  "name": "purescript-logoot-core",
   "ignore": [
     "**/.*",
     "node_modules",
