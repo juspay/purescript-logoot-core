@@ -20,5 +20,9 @@
     "purescript-refs": "^3.0.0",
     "purescript-debug": "^3.0.0"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/juspay/purescript-logoot-core.git"
+  },
   "license": "AGPL-1.0"
 }
